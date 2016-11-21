@@ -66,11 +66,7 @@ for ip in ips:
 v6subnetcache = dict()
 
 def combineparts(parts):
-    total = 0
-    for part in parts:
-        total = (total << 32) + part
-
-    return total
+    return '-'.join(map(str, parts))
 
 def splitparts(i):
     part4 = i & ((1<<32) - 1)
@@ -79,12 +75,12 @@ def splitparts(i):
     part1 = (i >> 96) & ((1<<32) - 1)
     return (part1, part2, part3, part4)
 
-def getthree(key, score):
+def getfour(key, score):
     res = r.zrangebyscore(key, score, 'inf', 0, 1, withscores=True, score_cast_func=int)
     if res:
         val, score = res[0]
-        first, second = val.split()
-        return int(score), int(first), int(second)
+        first, second, third = val.split()
+        return int(score), str(first), str(second), int(third)
 
 def storev6(subnet):
     subnet = netaddr.IPNetwork(subnet)
@@ -93,11 +89,11 @@ def storev6(subnet):
     lastparts = splitparts(subnet.last)
     # print(subnet, i, part1, part2, part3, part4, (part1<<96)+(part2<<64)+(part3<<32)+part4)
 
-    r.zadd(combineparts(lastparts[:3]), lastparts[3], "%s %s" % (combineparts(lastparts[:4]), combineparts(firstparts[:4])))
-    r.zadd(combineparts(lastparts[:2]), lastparts[2], "%s %s" % (combineparts(lastparts[:3]), combineparts(firstparts[:3])))
-    r.zadd(combineparts(lastparts[:1]), lastparts[1], "%s %s" % (combineparts(lastparts[:2]), combineparts(firstparts[:2])))
-    r.zadd('ip6'                      , lastparts[0], "%s %s" % (combineparts(lastparts[:1]), combineparts(firstparts[:1])))
-    v6subnetcache[(subnet.first, subnet.last)] = subnet
+    r.zadd(combineparts(lastparts[:3]), lastparts[3], "%s %s %s" % (combineparts(lastparts[:4]), combineparts(firstparts[:4]), firstparts[3]))
+    r.zadd(combineparts(lastparts[:2]), lastparts[2], "%s %s %s" % (combineparts(lastparts[:3]), combineparts(firstparts[:3]), firstparts[2]))
+    r.zadd(combineparts(lastparts[:1]), lastparts[1], "%s %s %s" % (combineparts(lastparts[:2]), combineparts(firstparts[:2]), firstparts[1]))
+    r.zadd('ip6'                      , lastparts[0], "%s %s %s" % (combineparts(lastparts[:1]), combineparts(firstparts[:1]), firstparts[0]))
+    v6subnetcache[(combineparts(firstparts), combineparts(lastparts))] = subnet
 
 def fetchv6(ip):
     ip = netaddr.IPAddress(ip)
@@ -110,11 +106,11 @@ def fetchv6(ip):
     key = 'ip6'
     buildparts = []
     for i in range(len(parts)):
-        res = getthree(key, parts[i])
+        res = getfour(key, parts[i])
         if not res:
             return
-        partiallast, last, first = res
-        if first > combineparts(parts[:i+1]):
+        partiallast, last, first, partialfirst = res
+        if partialfirst > parts[i]:
             return
 
         key = last
