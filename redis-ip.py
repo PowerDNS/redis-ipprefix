@@ -156,7 +156,7 @@ r.delete('ip6')
 for subnet in subnets:
     storev6(subnet)
 
-print(v6subnetcache)
+# print(v6subnetcache)
 
 for ip in ips:
     subnet = fetchv6(ip)
