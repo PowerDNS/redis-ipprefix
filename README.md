@@ -1,3 +1,9 @@
+# Experiments in storing IP prefix data in Redis
+
+Random ramblings below. This README currently lags behind the code.
+
+Test with `diff -u expected_output <(./redis-ip.py )`
+
 ## IPv4
 
 ```
@@ -14,7 +20,7 @@
 
 If we assume no overlapping subnets, we can add `LIMIT 0 1` to the zrangebyscore. If we assume overlap, we can limit it a small number (20-50) and evaluate them all, fetching more if necessary. (Or: we make sure the lexical ordering gives us the smallest one first (this is not the full story it turns out)). We can put all of this in Redis-side Lua.
 
-## IPv6
+### IPv6
 
 ZSET scores are 64 bit floats, which gives us 53 bits of positive integer resolution. The idea is to split the v6 address into chunks that we can 'stack'. 128/53 = 2.4 so we could do this in 3 levels but for convenience I propose to do 4*32 bits.
 
