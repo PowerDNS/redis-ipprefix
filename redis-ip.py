@@ -101,20 +101,24 @@ def fetchv6(ip):
 
     parts = splitparts(i)
 
-    totalfirst = 0
-    totallast = 0
+    first = []
+    last = []
     key = 'ip6'
     buildparts = []
     for i in range(len(parts)):
         res = getfour(key, parts[i])
         if not res:
             return
-        partiallast, last, first, partialfirst = res
+        partiallast, nextkey, _, partialfirst = res
+        first.append(str(partialfirst))
+        last.append(str(partiallast))
         if partialfirst > parts[i]:
             return
 
-        key = last
+        key = nextkey
 
+    first = '-'.join(first)
+    last = '-'.join(last)
     return (first, last)
     # a = getfirstlast('ip6', part1)
     # if(a):
@@ -158,6 +162,8 @@ r.delete('ip6')
 
 for subnet in subnets:
     storev6(subnet)
+
+print(v6subnetcache)
 
 for ip in ips:
     subnet = fetchv6(ip)
