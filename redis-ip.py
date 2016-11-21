@@ -115,7 +115,7 @@ def fetchv6(ip):
         if partialfirst > parts[i]:
             return
 
-        key = nextkey
+        key = '-'.join(last)
 
     first = '-'.join(first)
     last = '-'.join(last)
