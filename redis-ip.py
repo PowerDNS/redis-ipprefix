@@ -6,8 +6,31 @@ except ImportError:
     from redis import Redis
 
 import netaddr
+import sys
+import time
 
 r = Redis()
+
+v4subnetcache = dict()
+
+def getfirstlast(key, score):
+    res = r.zrangebyscore(key, score, 'inf', 0, 1, withscores=True, score_cast_func=int)
+    if res:
+        first, last = res[0]
+        return int(first), int(last)
+
+def storev4(subnet):
+    subnet = netaddr.IPNetwork(subnet)
+    r.zadd('ip4', subnet.last, '%s' % subnet.first)
+    v4subnetcache[(subnet.first, subnet.last)] = subnet
+
+def fetchv4(ip):
+    ip = netaddr.IPAddress(ip)
+    res = getfirstlast('ip4', int(ip))
+    if res:
+        first, last = res
+        if int(ip) >= first:
+            return first, last
 
 subnets = [
     '192.0.2.0/24',
@@ -29,18 +52,87 @@ ips = [
     '192.0.4.53',
 ]
 
-r.delete('ip')
+r.delete('ip4')
 
 for subnet in subnets:
-    subnet = netaddr.IPNetwork(subnet)
-    r.zadd('ip', subnet.last, "%03d %s" % (32-subnet.prefixlen, str(subnet)))
+    storev4(subnet)
 
 for ip in ips:
+    subnet = fetchv4(ip)
+    if subnet:
+        subnet = v4subnetcache[subnet]
+    print(ip, subnet)
+
+v6subnetcache = dict()
+
+def combineparts(parts):
+    total = 0
+    for part in parts:
+        total = (total << 32) + part
+
+    return total
+
+def splitparts(i):
+    part4 = i & ((1<<32) - 1)
+    part3 = (i >> 32) & ((1<<32) - 1)
+    part2 = (i >> 64) & ((1<<32) - 1)
+    part1 = (i >> 96) & ((1<<32) - 1)
+    return (part1, part2, part3, part4)
+
+def getthree(key, score):
+    res = r.zrangebyscore(key, score, 'inf', 0, 1, withscores=True, score_cast_func=int)
+    if res:
+        val, score = res[0]
+        first, second = val.split()
+        return int(score), int(first), int(second)
+
+def storev6(subnet):
+    subnet = netaddr.IPNetwork(subnet)
+
+    firstparts = splitparts(subnet.first)
+    lastparts = splitparts(subnet.last)
+    # print(subnet, i, part1, part2, part3, part4, (part1<<96)+(part2<<64)+(part3<<32)+part4)
+
+    r.zadd(combineparts(lastparts[:3]), lastparts[3], "%s %s" % (combineparts(lastparts[:4]), combineparts(firstparts[:4])))
+    r.zadd(combineparts(lastparts[:2]), lastparts[2], "%s %s" % (combineparts(lastparts[:3]), combineparts(firstparts[:3])))
+    r.zadd(combineparts(lastparts[:1]), lastparts[1], "%s %s" % (combineparts(lastparts[:2]), combineparts(firstparts[:2])))
+    r.zadd('ip6'                      , lastparts[0], "%s %s" % (combineparts(lastparts[:1]), combineparts(firstparts[:1])))
+    v6subnetcache[(subnet.first, subnet.last)] = subnet
+
+def fetchv6(ip):
     ip = netaddr.IPAddress(ip)
-    res = r.zrangebyscore('ip', int(ip), 'inf', 0, 1)
-    print(ip, res)
+    i = int(ip)
 
+    parts = splitparts(i)
 
+    totalfirst = 0
+    totallast = 0
+    key = 'ip6'
+    buildparts = []
+    for i in range(len(parts)):
+        res = getthree(key, parts[i])
+        if not res:
+            return
+        partiallast, last, first = res
+        if first > combineparts(parts[:i+1]):
+            return
+
+        key = last
+
+    return (first, last)
+    # a = getfirstlast('ip6', part1)
+    # if(a):
+    #     print("a", a)
+    #     b = r.zrangebyscore(a[0][0], part2, 'inf', 0, 1, withscores=True, score_cast_func=int)
+
+    #     if(b):
+    #         # print("b", b)
+    #         c = r.zrangebyscore(b[0][0], part3, 'inf', 0, 1, withscores=True, score_cast_func=int)
+
+    #         if(c):
+    #             # print("c", c)
+    #             d = r.zrangebyscore(c[0][0], part4, 'inf', 0, 1, withscores=True, score_cast_func=int)
+    #             print("x", ip, d)
 
 subnets = [
     '2001:db8::/32',
@@ -57,39 +149,18 @@ ips = [
     '2001:db9:0:0:50:51::1',
     ]
 
+r.delete('ip6')
+
 for subnet in subnets:
-    subnet = netaddr.IPNetwork(subnet)
-    i = subnet.last
-    part4 = i & ((1<<32) - 1)
-    part3 = (i >> 32) & ((1<<32) - 1)
-    part2 = (i >> 64) & ((1<<32) - 1)
-    part1 = (i >> 96) & ((1<<32) - 1)
-
-    print(subnet, i, part1, part2, part3, part4, (part1<<96)+(part2<<64)+(part3<<32)+part4)
-
-    r.zadd('%s%s%s' % (part1, part2, part3), part4, str(subnet))
-    r.zadd('%s%s'   % (part1, part2)       , part3, '%s%s%s' % (part1, part2, part3))
-    r.zadd('%s'     % (part1)              , part2, '%s%s'   % (part1, part2))
-    r.zadd('ipv6'                          , part1, '%s'     % (part1))
+    storev6(subnet)
 
 for ip in ips:
-    ip = netaddr.IPAddress(ip)
-    i = int(ip)
-    part4 = i & ((1<<32) - 1)
-    part3 = (i >> 32) & ((1<<32) - 1)
-    part2 = (i >> 64) & ((1<<32) - 1)
-    part1 = (i >> 96) & ((1<<32) - 1)
+    subnet = fetchv6(ip)
+    if subnet:
+        subnet = v6subnetcache[subnet]
+    print(ip, subnet)
 
-    a = r.zrangebyscore('ipv6', part1, 'inf', 0, 1)
-    if(a):
-        # print("a", a)
-        b = r.zrangebyscore(a[0], part2, 'inf', 0, 1)
-
-        if(b):
-            # print("b", b)
-            c = r.zrangebyscore(b[0], part3, 'inf', 0, 1)
-
-            if(c):
-                # print("c", c)
-                d = r.zrangebyscore(c[0], part4, 'inf', 0, 1)
-                print(ip, d[0])
+t = time.time()
+for i in range(10000):
+    subnet = fetchv6(ips[3])
+print(time.time()-t)
