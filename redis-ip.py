@@ -61,7 +61,7 @@ for ip in ips:
     subnet = fetchv4(ip)
     if subnet:
         subnet = v4subnetcache[subnet]
-    print(ip, subnet)
+    print("%s in %s" % (ip, subnet))
 
 v6subnetcache = dict()
 
@@ -167,4 +167,4 @@ for ip in ips:
     subnet = fetchv6(ip)
     if subnet:
         subnet = v6subnetcache[subnet]
-    print(ip, subnet)
+    print("%s in %s" % (ip, subnet))
