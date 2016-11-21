@@ -159,8 +159,3 @@ for ip in ips:
     if subnet:
         subnet = v6subnetcache[subnet]
     print(ip, subnet)
-
-t = time.time()
-for i in range(10000):
-    subnet = fetchv6(ips[3])
-print(time.time()-t)
