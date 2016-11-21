@@ -137,7 +137,8 @@ def fetchv6(ip):
 subnets = [
     '2001:db8::/32',
     '2600::/16',
-    '2001:db9:0:0:50:50:0:0/96'
+    '2001:db9:0:0:50:50:0:0/96',
+    '2500::/15'
 ]
 
 ips = [
@@ -147,6 +148,14 @@ ips = [
     '2001:db9:0:0:50:49::1',
     '2001:db9:0:0:50:50::1',
     '2001:db9:0:0:50:51::1',
+    '2001:db8:ffff:ffff:ffff:ffff:ffff:ffff',
+    '2001:db8:ffff:ffff:ffff:ffff:ffff:fffe',
+    '2001:db8::0',
+    '2500:5:5:5:5:5:5:5',
+    '2501::',
+    '2501:ffff:ffff:ffff:ffff:ffff:ffff:ffff',
+    '2502::',
+    '2502:ffff:ffff:ffff:ffff:ffff:ffff:ffff'
     ]
 
 r.delete('ip6')
