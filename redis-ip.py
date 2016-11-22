@@ -88,6 +88,15 @@ def storev6(subnet):
     r.zadd('ip6'                      , lastparts[0], "%s" % firstparts[0])
     v6subnetcache[(combineparts(firstparts), combineparts(lastparts))] = subnet
 
+def storev6lua(subnet, script):
+    subnet = netaddr.IPNetwork(subnet)
+
+    firstparts = splitparts(subnet.first)
+    lastparts = splitparts(subnet.last)
+
+    script(keys=["ip6"], args=firstparts+lastparts)
+    v6subnetcache[(combineparts(firstparts), combineparts(lastparts))] = subnet
+
 def fetchv6(ip):
     ip = netaddr.IPAddress(ip)
     i = int(ip)
@@ -160,16 +169,18 @@ ips = [
 
 r.delete('ip6')
 
+storescript = r.register_script(open("storev6.lua").read())
+
 for subnet in subnets:
-    storev6(subnet)
+    storev6lua(subnet, storescript)
 
 # print(v6subnetcache)
 
-script = r.register_script(open("fetchv6.lua").read())
+fetchscript = r.register_script(open("fetchv6.lua").read())
 
 for ip in ips:
     subnet = fetchv6(ip)
-    subnet2 = fetchv6lua(ip, script)
+    subnet2 = fetchv6lua(ip, fetchscript)
     if subnet and subnet2 and subnet != tuple(subnet2):
         print("v6 prefix lookup mismatch")
     if subnet:
