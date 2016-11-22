@@ -127,6 +127,13 @@ def fetchv6(ip):
     #             d = r.zrangebyscore(c[0][0], part4, 'inf', 0, 1, withscores=True, score_cast_func=int)
     #             print("x", ip, d)
 
+def fetchv6lua(ip, script):
+    ip = netaddr.IPAddress(ip)
+    i = int(ip)
+
+    parts = splitparts(i)
+    return script(keys=["ip6"], args=parts)
+
 subnets = [
     '2001:db8::/32',
     '2600::/16',
@@ -158,8 +165,13 @@ for subnet in subnets:
 
 # print(v6subnetcache)
 
+script = r.register_script(open("fetchv6.lua").read())
+
 for ip in ips:
     subnet = fetchv6(ip)
+    subnet2 = fetchv6lua(ip, script)
+    if subnet and subnet2 and subnet != tuple(subnet2):
+        print("v6 prefix lookup mismatch")
     if subnet:
-        subnet = v6subnetcache[subnet]
+        subnet = v6subnetcache[tuple(subnet)]
     print("%s in %s" % (ip, subnet))
